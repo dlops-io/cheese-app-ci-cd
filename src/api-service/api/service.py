@@ -7,7 +7,8 @@ Let's clean it up with CI/CD!
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 import math
-import os
+
+# import os
 from api.utils import power
 
 # Setup FastAPI app
@@ -22,10 +23,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Routes
 @app.get("/")
 async def get_index():
     return {"message": "Welcome to the Cheese App CI/CD Tutorial!"}
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
@@ -36,8 +40,11 @@ async def calculate_euclidean_distance(x: float = 1, y: float = 2):
     """Calculate the Euclidean distance from origin: sqrt(x^2 + y^2)
     Returns the distance of a point (x, y) from the origin (0, 0)
     """
-    z=power(x,2)+power(y,2)
-    result = math.sqrt(a)
-    return {"x": x, "y": y, "distance": result, "message": "This is a very long line that exceeds 120 characters and Black will complain about it so we need to fix this formatting issue"}
-
-
+    z = power(x, 2) + power(y, 2)
+    result = math.sqrt(z)
+    return {
+        "x": x,
+        "y": y,
+        "distance": result,
+        "message": "This is a very long line that exceeds 120 characters and ",
+    }
