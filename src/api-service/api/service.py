@@ -46,5 +46,5 @@ async def calculate_euclidean_distance(x: float = 1, y: float = 2):
         "x": x,
         "y": y,
         "distance": result,
-        "message": "This is a very long line that exceeds 120 characters blah",
+        "message": "This is a very long line that exceeds 120 characters and ",
     }
