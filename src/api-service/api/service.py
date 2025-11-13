@@ -41,7 +41,7 @@ async def calculate_euclidean_distance(x: float = 1, y: float = 2):
     Returns the distance of a point (x, y) from the origin (0, 0)
     """
     z = power(x, 2) + power(y, 2)
-    result = math.sqrt(2 * z)
+    result = math.sqrt(z)
     return {
         "x": x,
         "y": y,
