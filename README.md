@@ -280,14 +280,66 @@ All CI tests run inside Docker containers using Python 3.11 (same as production)
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
-Runs on every push and pull request to `main`:
+The CI pipeline is defined in `.github/workflows/ci.yml` and runs automatically on every push and pull request to the `main` and `develop` branches.
 
-1. **Build Job**: Builds Docker image once and shares it across all jobs
-2. **Lint Job**: Run Black formatter check and Flake8 linter inside container
-3. **Unit Tests Job**: Run pytest unit tests with coverage inside container
-4. **Integration Tests Job**: Test API endpoints inside container using FastAPI TestClient
-5. **System Tests Job**: Start server container and run end-to-end tests with real HTTP requests
-6. **Test Summary Job**: Aggregates results from all test jobs
+#### Understanding the Pipeline Structure
+
+The pipeline consists of **6 jobs** that run in parallel (except for dependencies):
+
+1. **Build Job** (`build`):
+   - Builds the Docker image once
+   - Uses Docker Buildx for efficient caching
+   - Tags the image with the Git commit SHA (`github.sha`) for uniqueness
+   - Saves the image as a tar file and uploads it as an artifact
+   - This ensures all other jobs use the exact same Docker image
+
+2. **Lint and Format Job** (`lint-and-format`):
+   - **Depends on**: `build` job
+   - Downloads the Docker image from artifacts
+   - Runs Black formatter check to ensure code formatting consistency
+   - Runs Flake8 linter to check code quality and style issues
+   - Uses `continue-on-error: true` for Flake8 to allow warnings without failing
+
+3. **Unit Tests Job** (`unit-tests`):
+   - **Depends on**: `build` job
+   - Downloads the Docker image
+   - Runs unit tests in isolation (no external dependencies)
+   - Generates coverage reports (terminal, XML, and HTML formats)
+   - Uploads coverage report as an artifact for later review
+
+4. **Integration Tests Job** (`integration-tests`):
+   - **Depends on**: `build` job
+   - Downloads the Docker image
+   - Tests API endpoints using FastAPI's TestClient
+   - Verifies routing, validation, and response serialization
+
+5. **System Tests Job** (`system-tests`):
+   - **Depends on**: `build` job
+   - Downloads the Docker image
+   - Starts the API server in a container (`docker run -d`)
+   - Waits for the server to be ready (health check with `curl`)
+   - Runs system tests against the live server using `--network host`
+   - Always shows server logs for debugging
+   - Always stops and removes the server container (cleanup)
+
+6. **Test Summary Job** (`test-summary`):
+   - **Depends on**: All three test jobs
+   - Runs even if tests fail (`if: always()`)
+   - Checks the results of all test jobs
+   - Prints a summary of which tests passed/failed
+   - Fails the pipeline if any test job failed
+
+#### Key CI/CD Concepts
+
+**Artifact Sharing**: The Docker image is built once and shared across all jobs using GitHub's artifact system. This is more efficient than rebuilding the image for each job.
+
+**Parallel Execution**: Jobs 2-5 run in parallel after the build completes, speeding up the pipeline.
+
+**Conditional Execution**: The `if: always()` ensures cleanup steps run even if tests fail.
+
+**Unique Image Tags**: Using `github.sha` ensures each commit gets a unique image tag, preventing conflicts.
+
+**Network Modes**: System tests use `--network host` so the test container can access the server at `localhost:9000`.
 
 ### Push to GitHub
 ```bash
@@ -303,6 +355,14 @@ git push
 3. See workflows running automatically
 4. Green checkmark = success ✅
 5. Red X = failure ❌
+
+### CI Pipeline in Action
+
+Here's what the pipeline looks like when running on GitHub:
+
+![CI Pipeline Running on GitHub](assets/pipline.png)
+
+The image shows all the jobs running in parallel after the build completes, demonstrating the efficient workflow structure.
 
 ---
 
@@ -360,15 +420,26 @@ def test_add_endpoint():
 
 3. **Test in Docker**:
 
-Start the container and run tests:
+Run tests using Docker (same format as CI pipeline):
 ```bash
-sh docker-shell.sh
-pytest tests/ -v
+# Build the image first
+docker build -t cheese-app-api:local .
+
+# Run all tests
+docker run --rm cheese-app-api:local pytest tests/ -v
+
+# Run specific test types
+docker run --rm cheese-app-api:local pytest tests/unit/ -v
+docker run --rm cheese-app-api:local pytest tests/integration/ -v
 ```
 
-Auto-format code:
+Check formatting and auto-format:
 ```bash
-black src/api-service/api/
+# Check formatting
+docker run --rm cheese-app-api:local black --check --line-length 120 api/
+
+# Auto-format code
+docker run --rm -v $(pwd)/src/api-service:/app cheese-app-api:local black --line-length 120 api/
 ```
 
 4. **Push to GitHub**:

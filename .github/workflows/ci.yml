@@ -1,5 +1,4 @@
 # GitHub Actions CI/CD Pipeline
-# Based on L18, Slide 2-7 - Continuous Integration
 # Runs on every push and pull request to main branch
 # All tests run inside Docker container for consistency
 
@@ -177,6 +176,7 @@ jobs:
     if: always()
     steps:
       - name: Check test results
+        id: test-results
         run: |
           echo "Unit Tests: ${{ needs.unit-tests.result }}"
           echo "Integration Tests: ${{ needs.integration-tests.result }}"
@@ -184,7 +184,74 @@ jobs:
 
           if [ "${{ needs.unit-tests.result }}" != "success" ] || [ "${{ needs.integration-tests.result }}" != "success" ] || [ "${{ needs.system-tests.result }}" != "success" ]; then
             echo "❌ Some tests failed!"
+            echo "status=failure" >> $GITHUB_OUTPUT
             exit 1
           else
             echo "✅ All tests passed!"
+            echo "status=success" >> $GITHUB_OUTPUT
           fi
+
+      - name: Check if Slack webhook is configured
+        id: slack-check
+        run: |
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        if: always() && steps.slack-check.outputs.enabled == 'true'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "${{ steps.test-results.outputs.status == 'success' && '✅ CI Pipeline Passed' || '❌ CI Pipeline Failed' }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ steps.test-results.outputs.status == 'success' && '✅ CI Pipeline Passed' || '❌ CI Pipeline Failed' }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${{ github.event.head_commit.url }}|${{ github.sha }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Test Results:*\n• Unit Tests: ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }}\n• Integration Tests: ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }}\n• System Tests: ${{ needs.system-tests.result == 'success' && '✅ Passed' || '❌ Failed' }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<${{ github.event.head_commit.url }}|View Commit> | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
