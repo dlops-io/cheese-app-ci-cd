@@ -1,0 +1,6 @@
+
+如果想实际应用这些改变：
+移除 --check --diff，直接运行：
+'''
+black src/api-service/api/
+'''
